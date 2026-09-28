@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SOLID CROW: SHADOW OPERATION</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #030708;
+            color: #00ff66;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            overflow: hidden;
+        }
+
+        canvas#viewport {
+            width: 100%;
+            height: 100%;
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        /* CRT Scanline Effect */
+        .crt-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+            opacity: 0.6;
+        }
+
+        /* MGS Soliton Radar HUD */
+        #radar-container {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 160px;
+            height: 160px;
+            background: rgba(4, 24, 12, 0.85);
+            border: 2px solid #00ff66;
+            border-radius: 8px;
+            box-shadow: 0 0 12px rgba(0, 255, 102, 0.3);
+            z-index: 20;
+            overflow: hidden;
+        }
+        #radar-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* DOOM-Style Status Bar HUD */
+        #doom-hud {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 70px;
+            background: linear-gradient(180deg, #111a13 0%, #050b07 100%);
+            border-top: 3px solid #00ff66;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 0 10px;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.8);
+        }
+
+        .hud-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #00ff66;
+            font-family: 'Press Start 2P', monospace;
+        }
+        .hud-label {
+            font-size: 9px;
+            color: #88ccaa;
+            margin-bottom: 3px;
+        }
+        .hud-val {
+            font-size: 18px;
+            text-shadow: 0 0 6px rgba(0,255,102,0.6);
+        }
+
+        /* Crow Doom Face Frame */
+        #face-frame {
+            width: 54px;
+            height: 54px;
+            border: 2px solid #00ff66;
+            background: #08140c;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+
+        /* Fortnite Mobile Touch Controls Layer */
+        #touch-controls {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 30;
+            display: none; /* Auto toggled for touch devices */
+        }
+
+        /* Fortnite Action Buttons */
+        .touch-btn {
+            position: absolute;
+            pointer-events: auto;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-family: 'Share Tech Mono', monospace;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 0 8px rgba(255,255,255,0.3);
+            border: 2px solid rgba(255,255,255,0.6);
+            backdrop-filter: blur(4px);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .touch-btn:active {
+            transform: scale(0.92);
+        }
+
+        #btn-fire {
+            right: 25px; bottom: 90px; width: 75px; height: 75px;
+            background: rgba(220, 38, 38, 0.75); color: #fff; font-size: 16px;
+        }
+        #btn-box {
+            right: 110px; bottom: 85px; width: 60px; height: 60px;
+            background: rgba(217, 119, 6, 0.75); color: #fff; font-size: 13px;
+        }
+        #btn-crouch {
+            right: 180px; bottom: 85px; width: 55px; height: 55px;
+            background: rgba(16, 185, 129, 0.75); color: #fff; font-size: 12px;
+        }
+        #btn-interact {
+            right: 35px; bottom: 180px; width: 58px; height: 58px;
+            background: rgba(59, 130, 246, 0.75); color: #fff; font-size: 13px;
+        }
+        #btn-weapon {
+            right: 105px; bottom: 155px; width: 52px; height: 52px;
+            background: rgba(139, 92, 246, 0.75); color: #fff; font-size: 11px;
+        }
+        #btn-knock {
+            right: 165px; bottom: 150px; width: 50px; height: 50px;
+            background: rgba(236, 72, 153, 0.75); color: #fff; font-size: 11px;
+        }
+
+        /* Virtual Touch Joystick */
+        #joystick-zone {
+            position: absolute;
+            left: 20px;
+            bottom: 85px;
+            width: 140px;
+            height: 140px;
+            pointer-events: auto;
+        }
+        #joystick-base {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(0, 255, 102, 0.5);
+            border-radius: 50%;
+            position: relative;
+        }
+        #joystick-thumb {
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 255, 102, 0.8);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            position: absolute;
+            top: 45px;
+            left: 45px;
+            box-shadow: 0 0 10px rgba(0,255,102,0.8);
+        }
+
+        /* MGS Codec System Overlay */
+        #codec-screen {
+            position: absolute;
+            inset: 0;
+            background: rgba(2, 12, 6, 0.95);
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            border: 4px solid #00ff66;
+            box-shadow: inset 0 0 30px rgba(0,255,102,0.3);
+        }
+        .codec-header {
+            text-align: center;
+            font-family: 'Press Start 2P', monospace;
+            color: #00ff66;
+            font-size: 16px;
+            border-bottom: 2px dashed #00ff66;
+            padding-bottom: 10px;
+        }
+        .codec-portraits {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .portrait-box {
+            width: 130px;
+            height: 150px;
+            border: 2px solid #00ff66;
+            background: #04140a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 0 15px rgba(0,255,102,0.2);
+        }
+        .portrait-avatar {
+            font-size: 60px;
+            margin-bottom: 10px;
+        }
+        .portrait-name {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 10px;
+            color: #00ff66;
+        }
+        .codec-freq {
+            font-family: 'Press Start 2P', monospace;
+            color: #33ffff;
+            font-size: 22px;
+            text-shadow: 0 0 10px #33ffff;
+        }
+        .codec-dialogue {
+            background: rgba(0, 30, 15, 0.8);
+            border: 2px solid #00ff66;
+            padding: 15px;
+            border-radius: 6px;
+            min-height: 110px;
+            font-size: 16px;
+            line-height: 1.4;
+            color: #d1ffd6;
+            position: relative;
+        }
+        .codec-next-btn {
+            margin-top: 10px;
+            align-self: flex-end;
+            background: #00ff66;
+            color: #000;
+            font-weight: bold;
+            padding: 8px 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 11px;
+        }
+
+        /* Banner Messages */
+        #alert-banner {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Press Start 2P', monospace;
+            font-size: 24px;
+            color: #ff2222;
+            text-shadow: 0 0 10px #ff0000;
+            display: none;
+            z-index: 22;
+            animation: blink 0.4s infinite alternate;
+        }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.2; } }
+
+        /* Game Start Screen */
+        #start-screen {
+            position: absolute;
+            inset: 0;
+            background: #020905;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- CRT Overlay -->
+        <div class="crt-overlay"></div>
+
+        <!-- 3D Raycaster Viewport Canvas -->
+        <canvas id="viewport"></canvas>
+
+        <!-- Dynamic Alert Display -->
+        <div id="alert-banner">! ALERT !</div>
+
+        <!-- Soliton Stealth Radar HUD -->
+        <div id="radar-container">
+            <canvas id="radar-canvas" width="160" height="160"></canvas>
+        </div>
+
+        <!-- DOOM Style Status Bar -->
+        <div id="doom-hud">
+            <div class="hud-block">
+                <span class="hud-label">HEALTH</span>
+                <span id="hud-health" class="hud-val">100%</span>
+            </div>
+            <div class="hud-block">
+                <span class="hud-label">AGENT</span>
+                <div id="face-frame">🕵️</div>
+            </div>
+            <div class="hud-block">
+                <span class="hud-label">WEAPON</span>
+                <span id="hud-weapon" class="hud-val" style="font-size: 13px;">SOCOM</span>
+            </div>
+            <div class="hud-block">
+                <span class="hud-label">AMMO</span>
+                <span id="hud-ammo" class="hud-val">12/12</span>
+            </div>
+            <div class="hud-block">
+                <span class="hud-label">STATE</span>
+                <span id="hud-stance" class="hud-val" style="font-size: 11px; color:#ffcc00;">WALK</span>
+            </div>
+        </div>
+
+        <!-- Fortnite Style Touch Controls -->
+        <div id="touch-controls">
+            <!-- Left Movement Joystick Zone -->
+            <div id="joystick-zone">
+                <div id="joystick-base">
+                    <div id="joystick-thumb"></div>
+                </div>
+            </div>
+
+            <!-- Right Action Buttons -->
+            <button id="btn-fire" class="touch-btn">FIRE</button>
+            <button id="btn-box" class="touch-btn">📦 BOX</button>
+            <button id="btn-crouch" class="touch-btn">CROUCH</button>
+            <button id="btn-interact" class="touch-btn">ACTION</button>
+            <button id="btn-weapon" class="touch-btn">GUN</button>
+            <button id="btn-knock" class="touch-btn">KNOCK</button>
+        </div>
+
+        <!-- MGS Codec Radio UI -->
+        <div id="codec-screen">
+            <div class="codec-header">MEMORY CODEC COMMUNICATOR</div>
+            <div class="codec-portraits">
+                <div class="portrait-box">
+                    <div id="codec-p1-avatar" class="portrait-avatar">🕵️</div>
+                    <div id="codec-p1-name" class="portrait-name">CROW</div>
+                </div>
+                <div class="codec-freq">140.85</div>
+                <div class="portrait-box">
+                    <div id="codec-p2-avatar" class="portrait-avatar">👴</div>
+                    <div id="codec-p2-name" class="portrait-name">COMMANDER</div>
+                </div>
+            </div>
+            <div class="codec-dialogue">
+                <p id="codec-text">Establishing tactical frequency connection...</p>
+            </div>
+            <button id="codec-btn" class="codec-next-btn">TAP TO CONTINUE [SPACE]</button>
+        </div>
+
+        <!-- Start / Mission Briefing Screen -->
+        <div id="start-screen">
+            <h1 class="text-3xl sm:text-5xl font-extrabold text-green-400 mb-2 tracking-wider" style="font-family: 'Press Start 2P'; text-shadow: 0 0 15px #00ff66;">SOLID CROW</h1>
+            <h2 class="text-lg sm:text-xl text-green-200 mb-6" style="font-family: 'Press Start 2P';">SHADOW OPERATION</h2>
+            <p class="max-w-xl text-sm sm:text-base text-gray-300 mb-6 leading-relaxed">
+                Agent Crow, infiltrate the rogue Arctic Shadow base. Evade enemy patrol guards using stealth, hide in Cardboard Boxes, use distractions, or engage with tactical weapons. Complete the story objectives to stop the launch!
+            </p>
+            <div class="bg-black/60 border border-green-500/40 p-4 rounded-lg mb-6 text-left max-w-md w-full text-xs text-green-300">
+                <p class="font-bold mb-1 text-white">CONTROLS:</p>
+                <p>• <b>Desktop:</b> WASD to Move, Mouse Drag to Look, Space/Click to Fire, C to Crouch, B for Box, E to Interact, K to Knock on Wall, 1/2 to switch Guns.</p>
+                <p class="mt-1">• <b>Mobile:</b> On-screen Joystick to move/turn, Fortnite-style touch action buttons, drag screen to look.</p>
+            </div>
+            <button id="start-btn" class="bg-green-500 hover:bg-green-400 text-black font-extrabold px-8 py-4 rounded-lg text-lg transition transform active:scale-95 shadow-lg" style="font-family: 'Press Start 2P';">
+                START MISSION
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Audio Synthesizer (Web Audio API)
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playTone(freq, duration, type = 'sine', vol = 0.2) {
+                if (!this.ctx) return;
+                try {
+                    let osc = this.ctx.createOscillator();
+                    let gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e){}
+            }
+            playAlert() {
+                if (!this.ctx) return;
+                this.playTone(880, 0.15, 'sawtooth', 0.3);
+                setTimeout(() => this.playTone(1200, 0.25, 'sawtooth', 0.4), 100);
+            }
+            playGunshot() {
+                if (!this.ctx) return;
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+            playCodec() {
+                this.playTone(600, 0.08, 'sine', 0.2);
+                setTimeout(() => this.playTone(900, 0.12, 'sine', 0.2), 90);
+            }
+            playKnock() {
+                this.playTone(180, 0.08, 'triangle', 0.3);
+            }
+        }
+        const sfx = new SoundFX();
+
+        class VoiceEngine {
+            constructor() {
+                this.synth = window.speechSynthesis;
+            }
+            speak(text, character = 'CROW', callback = null) {
+                if (!this.synth) {
+                    if (callback) callback();
+                    return;
+                }
+                this.synth.cancel(); // Stop ongoing speech
+                let utter = new SpeechSynthesisUtterance(text);
+                
+                // Customize voice pitch/rate per character
+                if (character === 'CROW') {
+                    utter.pitch = 0.9;
+                    utter.rate = 1.05;
+                } else if (character === 'COMMANDER') {
+                    utter.pitch = 0.7;
+                    utter.rate = 0.95;
+                } else if (character === 'MEI LING') {
+                    utter.pitch = 1.3;
+                    utter.rate = 1.0;
+                }
+
+                utter.onend = () => {
+                    if (callback) callback();
+                };
+                utter.onerror = () => {
+                    if (callback) callback();
+                };
+                this.synth.speak(utter);
+            }
+        }
+        const voice = new VoiceEngine();
+
+        const MAP_WIDTH = 16;
+        const MAP_HEIGHT = 16;
+        // Map layout: 1 = Wall, 2 = Door, 3 = Objective Terminal, 0 = Empty floor
+        const worldMap = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,1,0,0,0,0,0,1,0,0,0,3,1],
+            [1,0,1,0,1,0,1,1,1,0,1,0,1,1,0,1],
+            [1,0,1,0,0,0,0,0,1,0,2,0,0,1,0,1],
+            [1,0,1,1,1,1,1,0,1,0,1,1,0,1,0,1],
+            [1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,1],
+            [1,1,1,0,1,0,1,1,1,1,0,1,1,1,0,1],
+            [1,0,0,0,1,0,0,0,0,1,0,0,0,1,0,1],
+            [1,0,1,1,1,1,1,1,0,1,1,1,0,1,0,1],
+            [1,0,0,0,2,0,0,1,0,0,0,1,0,0,0,1],
+            [1,1,1,0,1,1,0,1,1,1,0,1,1,1,1,1],
+            [1,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,1,0,1,1,1,1,1,0,1],
+            [1,0,0,1,0,0,0,1,0,0,0,0,0,1,0,1],
+            [1,1,0,0,0,1,0,0,0,1,1,1,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        const player = {
+            x: 1.5,
+            y: 1.5,
+            dirX: 1,
+            dirY: 0,
+            planeX: 0,
+            planeY: 0.66,
+            moveSpeed: 0.04,
+            rotSpeed: 0.03,
+            health: 100,
+            isCrouching: false,
+            inBox: false,
+            weapon: 'SOCOM', // 'SOCOM' or 'RIFLE'
+            ammo: { 'SOCOM': 12, 'RIFLE': 30 },
+            maxAmmo: { 'SOCOM': 12, 'RIFLE': 30 },
+            keycard: false,
+            objectiveReached: false
+        };
+
+        class Guard {
+            constructor(id, x, y, patPath) {
+                this.id = id;
+                this.x = x;
+                this.y = y;
+                this.path = patPath;
+                this.pathIdx = 0;
+                this.state = 'PATROL'; // 'PATROL', 'SUSPICIOUS', 'ALERT'
+                this.angle = 0;
+                this.health = 40;
+                this.alertTimer = 0;
+                this.targetX = x;
+                this.targetY = y;
+                this.speed = 0.018;
+            }
+            update() {
+                if (this.health <= 0) return;
+
+                // State logic
+                if (this.state === 'PATROL') {
+                    let tgt = this.path[this.pathIdx];
+                    let dx = tgt.x - this.x;
+                    let dy = tgt.y - this.y;
+                    let dist = Math.hypot(dx, dy);
+                    if (dist < 0.2) {
+                        this.pathIdx = (this.pathIdx + 1) % this.path.length;
+                    } else {
+                        this.angle = Math.atan2(dy, dx);
+                        this.x += Math.cos(this.angle) * this.speed;
+                        this.y += Math.sin(this.angle) * this.speed;
+                    }
+                } else if (this.state === 'SUSPICIOUS') {
+                    let dx = this.targetX - this.x;
+                    let dy = this.targetY - this.y;
+                    let dist = Math.hypot(dx, dy);
+                    if (dist > 0.2) {
+                        this.angle = Math.atan2(dy, dx);
+                        this.x += Math.cos(this.angle) * (this.speed * 1.2);
+                        this.y += Math.sin(this.angle) * (this.speed * 1.2);
+                    } else {
+                        this.alertTimer++;
+                        if (this.alertTimer > 200) {
+                            this.state = 'PATROL';
+                            this.alertTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'ALERT') {
+                    this.angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    this.x += Math.cos(this.angle) * (this.speed * 1.6);
+                    this.y += Math.sin(this.angle) * (this.speed * 1.6);
+
+                    // Shoot at player if in range
+                    let distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
+                    if (distToPlayer < 4.0 && Math.random() < 0.03) {
+                        sfx.playGunshot();
+                        player.health = Math.max(0, player.health - 8);
+                        updateDoomHUD();
+                    }
+                }
+
+                // Vision Cone & Line of Sight Check
+                let dxP = player.x - this.x;
+                let dyP = player.y - this.y;
+                let distP = Math.hypot(dxP, dyP);
+                let angleToP = Math.atan2(dyP, dxP);
+                let diffAngle = Math.abs(this.angle - angleToP);
+                if (diffAngle > Math.PI) diffAngle = Math.PI * 2 - diffAngle;
+
+                if (distP < 5.0 && diffAngle < Math.PI / 4) {
+                    if (!player.inBox || this.state === 'ALERT' || distP < 1.0) {
+                        if (this.state !== 'ALERT') {
+                            this.state = 'ALERT';
+                            sfx.playAlert();
+                            triggerAlertUI();
+                        }
+                    }
+                }
+            }
+        }
+
+        const guards = [
+            new Guard(1, 3.5, 3.5, [{x:3.5, y:3.5}, {x:7.5, y:3.5}, {x:7.5, y:1.5}]),
+            new Guard(2, 13.5, 7.5, [{x:13.5, y:7.5}, {x:13.5, y:13.5}, {x:9.5, y:13.5}]),
+            new Guard(3, 5.5, 11.5, [{x:5.5, y:11.5}, {x:1.5, y:11.5}, {x:1.5, y:7.5}])
+        ];
+
+        const storyDialogues = [
+            {
+                id: 'intro',
+                speaker1: { name: 'CROW', avatar: '🕵️' },
+                speaker2: { name: 'COMMANDER', avatar: '👴' },
+                text: "Agent Crow, you've snuck into the Arctic Base. Your objective is to reach the Control Terminal at the northwest sector without triggering total alarm.",
+                char: 'COMMANDER',
+                nextId: 'intro2'
+            },
+            {
+                id: 'intro2',
+                speaker1: { name: 'CROW', avatar: '🕵️' },
+                speaker2: { name: 'MEI LING', avatar: '👩‍💻' },
+                text: "Crow, remember you can crouch to stay quiet, knock on walls to distract guards, or hide in cardboard boxes if you get spotted!",
+                char: 'MEI LING',
+                nextId: null
+            },
+            {
+                id: 'win',
+                speaker1: { name: 'CROW', avatar: '🕵️' },
+                speaker2: { name: 'COMMANDER', avatar: '👴' },
+                text: "Outstanding work Crow! Terminal overridden! Rogue launch canceled. Mission complete!",
+                char: 'COMMANDER',
+                nextId: null
+            }
+        ];
+
+        const canvas = document.getElementById('viewport');
+        const ctx = canvas.getContext('2d');
+        const radarCanvas = document.getElementById('radar-canvas');
+        const radarCtx = radarCanvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function renderRaycaster() {
+            let w = canvas.width;
+            let h = canvas.height;
+
+            // Sky / Floor background gradient
+            ctx.fillStyle = '#0a120c';
+            ctx.fillRect(0, 0, w, h / 2);
+            ctx.fillStyle = '#18241b';
+            ctx.fillRect(0, h / 2, w, h / 2);
+
+            let zBuffer = new Array(w);
+
+            for (let x = 0; x < w; x++) {
+                let cameraX = 2 * x / w - 1;
+                let rayDirX = player.dirX + player.planeX * cameraX;
+                let rayDirY = player.dirY + player.planeY * cameraX;
+
+                let mapX = Math.floor(player.x);
+                let mapY = Math.floor(player.y);
+
+                let sideDistX, sideDistY;
+                let deltaDistX = Math.abs(1 / rayDirX);
+                let deltaDistY = Math.abs(1 / rayDirY);
+                let perpWallDist;
+
+                let stepX, stepY;
+                let hit = 0;
+                let side = 0;
+
+                if (rayDirX < 0) {
+                    stepX = -1;
+                    sideDistX = (player.x - mapX) * deltaDistX;
+                } else {
+                    stepX = 1;
+                    sideDistX = (mapX + 1.0 - player.x) * deltaDistX;
+                }
+                if (rayDirY < 0) {
+                    stepY = -1;
+                    sideDistY = (player.y - mapY) * deltaDistY;
+                } else {
+                    stepY = 1;
+                    sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
+                }
+
+                // DDA Raycasting loop
+                while (hit === 0) {
+                    if (sideDistX < sideDistY) {
+                        sideDistX += deltaDistX;
+                        mapX += stepX;
+                        side = 0;
+                    } else {
+                        sideDistY += deltaDistY;
+                        mapY += stepY;
+                        side = 1;
+                    }
+                    if (worldMap[mapX][mapY] > 0) hit = worldMap[mapX][mapY];
+                }
+
+                if (side === 0) perpWallDist = (mapX - player.x + (1 - stepX) / 2) / rayDirX;
+                else perpWallDist = (mapY - player.y + (1 - stepY) / 2) / rayDirY;
+
+                zBuffer[x] = perpWallDist;
+
+                let lineHeight = Math.floor(h / perpWallDist);
+                let drawStart = -lineHeight / 2 + h / 2;
+                if (drawStart < 0) drawStart = 0;
+                let drawEnd = lineHeight / 2 + h / 2;
+                if (drawEnd >= h) drawEnd = h - 1;
+
+                // Wall Colors based on map tile (1: Wall, 2: Door, 3: Terminal)
+                let wallColor = side === 1 ? '#007733' : '#00aa44';
+                if (hit === 2) wallColor = side === 1 ? '#bb7700' : '#ff9900';
+                if (hit === 3) wallColor = side === 1 ? '#0088cc' : '#00ccff';
+
+                ctx.fillStyle = wallColor;
+                ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+            }
+
+            guards.forEach(g => {
+                if (g.health <= 0) return;
+                let spriteX = g.x - player.x;
+                let spriteY = g.y - player.y;
+
+                let invDet = 1.0 / (player.planeX * player.dirY - player.dirX * player.planeY);
+                let transformX = invDet * (player.dirY * spriteX - player.dirX * spriteY);
+                let transformY = invDet * (-player.planeY * spriteX + player.planeX * spriteY);
+
+                if (transformY > 0) {
+                    let spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+                    let spriteHeight = Math.abs(Math.floor(h / transformY));
+                    let drawStartY = -spriteHeight / 2 + h / 2;
+                    let drawEndY = spriteHeight / 2 + h / 2;
+                    let spriteWidth = Math.abs(Math.floor(h / transformY));
+                    let drawStartX = -spriteWidth / 2 + spriteScreenX;
+                    let drawEndX = spriteWidth / 2 + spriteScreenX;
+
+                    if (spriteScreenX > 0 && spriteScreenX < w && transformY < zBuffer[Math.floor(spriteScreenX)]) {
+                        // Draw guard silhouette / sprite
+                        ctx.fillStyle = g.state === 'ALERT' ? '#ff2222' : (g.state === 'SUSPICIOUS' ? '#ffff00' : '#00ff66');
+                        ctx.beginPath();
+                        ctx.arc(spriteScreenX, h/2, Math.max(10, spriteHeight/4), 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Guard Alert Icon Above Sprite
+                        if (g.state === 'ALERT') {
+                            ctx.fillStyle = '#ff0000';
+                            ctx.font = 'bold 28px sans-serif';
+                            ctx.fillText('!', spriteScreenX - 5, drawStartY - 10);
+                        }
+                    }
+                }
+            });
+
+            renderWeaponOverlay();
+        }
+
+        function renderWeaponOverlay() {
+            let w = canvas.width;
+            let h = canvas.height;
+            ctx.save();
+            ctx.fillStyle = '#111';
+            ctx.fillRect(w/2 - 15, h - 180, 30, 110);
+            ctx.fillStyle = '#333';
+            ctx.fillRect(w/2 - 10, h - 200, 20, 30);
+            ctx.restore();
+        }
+
+        function renderRadar() {
+            radarCtx.clearRect(0, 0, 160, 160);
+            let cx = 80;
+            let cy = 80;
+            let scale = 8;
+
+            // Player dot
+            radarCtx.fillStyle = '#00ff66';
+            radarCtx.beginPath();
+            radarCtx.arc(cx, cy, 4, 0, Math.PI * 2);
+            radarCtx.fill();
+
+            // Guards & Vision Cones on Radar
+            guards.forEach(g => {
+                if (g.health <= 0) return;
+                let rx = cx + (g.x - player.x) * scale;
+                let ry = cy + (g.y - player.y) * scale;
+
+                if (rx >= 0 && rx <= 160 && ry >= 0 && ry <= 160) {
+                    // Vision Cone
+                    radarCtx.fillStyle = g.state === 'ALERT' ? 'rgba(255, 0, 0, 0.35)' : (g.state === 'SUSPICIOUS' ? 'rgba(255, 255, 0, 0.35)' : 'rgba(0, 255, 102, 0.25)');
+                    radarCtx.beginPath();
+                    radarCtx.moveTo(rx, ry);
+                    radarCtx.arc(rx, ry, 30, g.angle - Math.PI/4, g.angle + Math.PI/4);
+                    radarCtx.closePath();
+                    radarCtx.fill();
+
+                    // Guard Dot
+                    radarCtx.fillStyle = g.state === 'ALERT' ? '#ff0000' : '#ffff00';
+                    radarCtx.beginPath();
+                    radarCtx.arc(rx, ry, 3, 0, Math.PI * 2);
+                    radarCtx.fill();
+                }
+            });
+        }
+
+        function updateDoomHUD() {
+            document.getElementById('hud-health').innerText = player.health + '%';
+            document.getElementById('hud-ammo').innerText = player.ammo[player.weapon] + '/' + player.maxAmmo[player.weapon];
+            document.getElementById('hud-weapon').innerText = player.weapon;
+
+            // Crow Face Expressions
+            let faceFrame = document.getElementById('face-frame');
+            if (player.health <= 0) faceFrame.innerText = '💀';
+            else if (player.health < 35) faceFrame.innerText = '🤕';
+            else if (guards.some(g => g.state === 'ALERT')) faceFrame.innerText = '😱';
+            else if (player.inBox) faceFrame.innerText = '📦';
+            else faceFrame.innerText = '🕵️';
+
+            let alertAny = guards.some(g => g.state === 'ALERT');
+            document.getElementById('alert-banner').style.display = alertAny ? 'block' : 'none';
+        }
+
+        let currentDialogue = null;
+
+        function openCodec(dialogueId) {
+            let dlg = storyDialogues.find(d => d.id === dialogueId);
+            if (!dlg) return;
+            currentDialogue = dlg;
+
+            document.getElementById('codec-p1-name').innerText = dlg.speaker1.name;
+            document.getElementById('codec-p1-avatar').innerText = dlg.speaker1.avatar;
+            document.getElementById('codec-p2-name').innerText = dlg.speaker2.name;
+            document.getElementById('codec-p2-avatar').innerText = dlg.speaker2.avatar;
+            document.getElementById('codec-text').innerText = dlg.text;
+
+            document.getElementById('codec-screen').style.display = 'flex';
+            sfx.playCodec();
+
+            voice.speak(dlg.text, dlg.char);
+        }
+
+        function advanceCodec() {
+            if (!currentDialogue) return;
+            if (currentDialogue.nextId) {
+                openCodec(currentDialogue.nextId);
+            } else {
+                document.getElementById('codec-screen').style.display = 'none';
+                currentDialogue = null;
+            }
+        }
+
+        document.getElementById('codec-btn').addEventListener('click', advanceCodec);
+
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ') fireWeapon();
+            if (e.key.toLowerCase() === 'b') toggleBox();
+            if (e.key.toLowerCase() === 'c') toggleCrouch();
+            if (e.key.toLowerCase() === 'k') knockWall();
+            if (e.key.toLowerCase() === 'e') interact();
+            if (e.key === '1') player.weapon = 'SOCOM';
+            if (e.key === '2') player.weapon = 'RIFLE';
+            updateDoomHUD();
+        });
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        // Detect touch device & enable Fortnite touch HUD
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+            document.getElementById('touch-controls').style.display = 'block';
+        }
+
+        // Virtual Touch Joystick Implementation
+        const joyZone = document.getElementById('joystick-zone');
+        const joyThumb = document.getElementById('joystick-thumb');
+        let joyActive = false;
+        let joyDir = { x: 0, y: 0 };
+
+        joyZone.addEventListener('touchstart', e => {
+            joyActive = true;
+            updateJoystick(e.touches[0]);
+        });
+        joyZone.addEventListener('touchmove', e => {
+            if (joyActive) updateJoystick(e.touches[0]);
+        });
+        joyZone.addEventListener('touchend', () => {
+            joyActive = false;
+            joyDir = { x: 0, y: 0 };
+            joyThumb.style.left = '45px';
+            joyThumb.style.top = '45px';
+        });
+
+        function updateJoystick(touch) {
+            let rect = joyZone.getBoundingClientRect();
+            let cx = rect.left + rect.width / 2;
+            let cy = rect.top + rect.height / 2;
+            let dx = touch.clientX - cx;
+            let dy = touch.clientY - cy;
+            let dist = Math.hypot(dx, dy);
+            let maxDist = 45;
+
+            if (dist > maxDist) {
+                dx = (dx / dist) * maxDist;
+                dy = (dy / dist) * maxDist;
+            }
+
+            joyThumb.style.left = (45 + dx) + 'px';
+            joyThumb.style.top = (45 + dy) + 'px';
+
+            joyDir.x = dx / maxDist;
+            joyDir.y = dy / maxDist;
+        }
+
+        // Action Touch Buttons
+        document.getElementById('btn-fire').addEventListener('touchstart', (e) => { e.preventDefault(); fireWeapon(); });
+        document.getElementById('btn-box').addEventListener('touchstart', (e) => { e.preventDefault(); toggleBox(); });
+        document.getElementById('btn-crouch').addEventListener('touchstart', (e) => { e.preventDefault(); toggleCrouch(); });
+        document.getElementById('btn-interact').addEventListener('touchstart', (e) => { e.preventDefault(); interact(); });
+        document.getElementById('btn-weapon').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            player.weapon = player.weapon === 'SOCOM' ? 'RIFLE' : 'SOCOM';
+            updateDoomHUD();
+        });
+        document.getElementById('btn-knock').addEventListener('touchstart', (e) => { e.preventDefault(); knockWall(); });
+
+        function fireWeapon() {
+            if (player.ammo[player.weapon] <= 0) return;
+            player.ammo[player.weapon]--;
+            sfx.playGunshot();
+            updateDoomHUD();
+
+            // Hitscan attack
+            guards.forEach(g => {
+                let dx = g.x - player.x;
+                let dy = g.y - player.y;
+                let dist = Math.hypot(dx, dy);
+                let angleToG = Math.atan2(dy, dx);
+                let pAngle = Math.atan2(player.dirY, player.dirX);
+                let diff = Math.abs(pAngle - angleToG);
+
+                if (dist < 8.0 && diff < 0.3) {
+                    g.health -= 25;
+                    g.state = 'ALERT';
+                    if (g.health <= 0) {
+                        sfx.playTone(100, 0.2, 'sawtooth');
+                    }
+                }
+            });
+        }
+
+        function toggleBox() {
+            player.inBox = !player.inBox;
+            document.getElementById('hud-stance').innerText = player.inBox ? 'BOX' : 'WALK';
+            updateDoomHUD();
+        }
+
+        function toggleCrouch() {
+            player.isCrouching = !player.isCrouching;
+            document.getElementById('hud-stance').innerText = player.isCrouching ? 'CROUCH' : 'WALK';
+            updateDoomHUD();
+        }
+
+        function knockWall() {
+            sfx.playKnock();
+            guards.forEach(g => {
+                let dist = Math.hypot(g.x - player.x, g.y - player.y);
+                if (dist < 6.0 && g.state !== 'ALERT') {
+                    g.state = 'SUSPICIOUS';
+                    g.targetX = player.x;
+                    g.targetY = player.y;
+                }
+            });
+        }
+
+        function interact() {
+            let mapX = Math.floor(player.x + player.dirX * 0.8);
+            let mapY = Math.floor(player.y + player.dirY * 0.8);
+            if (worldMap[mapX][mapY] === 3) {
+                openCodec('win');
+            }
+        }
+
+        function triggerAlertUI() {
+            sfx.playAlert();
+            updateDoomHUD();
+        }
+
+        function updatePlayerMovement() {
+            let spd = player.isCrouching ? player.moveSpeed * 0.5 : player.moveSpeed;
+            let moveForward = 0;
+            let turnDir = 0;
+
+            if (keys['w'] || joyDir.y < -0.2) moveForward = 1;
+            if (keys['s'] || joyDir.y > 0.2) moveForward = -1;
+            if (keys['a'] || joyDir.x < -0.2) turnDir = -1;
+            if (keys['d'] || joyDir.x > 0.2) turnDir = 1;
+
+            // Rotation
+            if (turnDir !== 0) {
+                let rSpd = player.rotSpeed * turnDir;
+                let oldDirX = player.dirX;
+                player.dirX = player.dirX * Math.cos(rSpd) - player.dirY * Math.sin(rSpd);
+                player.dirY = oldDirX * Math.sin(rSpd) + player.dirY * Math.cos(rSpd);
+                let oldPlaneX = player.planeX;
+                player.planeX = player.planeX * Math.cos(rSpd) - player.planeY * Math.sin(rSpd);
+                player.planeY = oldPlaneX * Math.sin(rSpd) + player.planeY * Math.cos(rSpd);
+            }
+
+            // Movement Collision
+            if (moveForward !== 0) {
+                let newX = player.x + player.dirX * spd * moveForward;
+                let newY = player.y + player.dirY * spd * moveForward;
+                if (worldMap[Math.floor(newX)][Math.floor(player.y)] === 0) player.x = newX;
+                if (worldMap[Math.floor(player.x)][Math.floor(newY)] === 0) player.y = newY;
+            }
+        }
+
+        function gameLoop() {
+            updatePlayerMovement();
+            guards.forEach(g => g.update());
+            renderRaycaster();
+            renderRadar();
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            sfx.init();
+            document.getElementById('start-screen').style.display = 'none';
+            gameLoop();
+            setTimeout(() => openCodec('intro'), 600);
+        });
+    </script>
+</body>
+</html>
